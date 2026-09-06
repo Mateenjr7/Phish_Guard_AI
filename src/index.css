@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    --background: 240 20% 12%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 18% 16%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 18% 16%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 348 83% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 15% 22%;
+    --secondary-foreground: 0 0% 90%;
+
+    --muted: 240 12% 20%;
+    --muted-foreground: 240 5% 60%;
+
+    --accent: 160 60% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 12% 25%;
+    --input: 240 12% 25%;
+    --ring: 348 83% 55%;
+
+    --radius: 0.75rem;
+
+    --danger: 0 72% 51%;
+    --warning: 38 92% 50%;
+    --success: 160 60% 45%;
+    --score-gradient: linear-gradient(90deg, hsl(160, 60%, 45%), hsl(38, 92%, 50%), hsl(0, 72%, 51%));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(348, 83%, 55%), hsl(348, 90%, 65%));
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 30px hsl(348 83% 55% / 0.2), 0 0 60px hsl(348 83% 55% / 0.1);
+  }
+
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .stat-card {
+    @apply border border-border/60 bg-card/60 backdrop-blur-sm rounded-xl px-6 py-4 text-center;
+  }
+
+  .alert-card {
+    background: linear-gradient(135deg, hsl(240, 18%, 14%), hsl(348, 30%, 15%));
+    @apply border border-border/50 rounded-xl;
+  }
+}
+@keyframes borderMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.animate-border {
+  background-size: 200% 200%;
+  animation: borderMove 3s linear infinite;
+}
+@keyframes borderMove {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.animate-border {
+  background-size: 200% 200%;
+  animation: borderMove 3s linear infinite;
+}
+
+/* Add perspective utility for 3D tilt */
+.perspective-500 {
+  perspective: 500px;
+}
+
+/* Custom styles for HeroSection */
+.text-gradient-primary {
+  background: linear-gradient(90deg, #61dca3, #61b3dc, #2b4539);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.text-glow {
+  text-shadow: 0 0 10px #61dca3, 0 0 20px #61b3dc;
+}
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px);}
+  100% { opacity: 1; transform: translateY(0);}
+}
+.animate-fade-in {
+  animation: fadeIn 0.7s forwards;
+}
+.glow-effect {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.5), 0 0 40px rgba(239, 68, 68, 0.3);
+}
+.glow-effect:hover {
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.8), 0 0 60px rgba(239, 68, 68, 0.5);
+}
