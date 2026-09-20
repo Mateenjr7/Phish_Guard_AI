@@ -1,10 +1,90 @@
-from urllib.parse import urlparse
-import re
 import math
+import re
+from urllib.parse import urlparse
 
 
-def shannon_entropy(text):
-    """Calculate Shannon entropy of a string."""
+# ==========================================
+# SUSPICIOUS WORDS
+# ==========================================
+
+SUSPICIOUS_WORDS = [
+    "login",
+    "signin",
+    "sign-in",
+    "verify",
+    "verification",
+    "account",
+    "secure",
+    "security",
+    "update",
+    "confirm",
+    "confirmation",
+    "password",
+    "credential",
+    "authenticate",
+    "authentication",
+    "wallet",
+    "payment",
+    "billing",
+    "bank",
+    "paypal",
+    "unlock",
+    "suspended",
+    "restricted",
+]
+
+
+# ==========================================
+# SHORTENED URL SERVICES
+# ==========================================
+
+SHORTENED_DOMAINS = [
+    "bit.ly",
+    "tinyurl.com",
+    "t.co",
+    "goo.gl",
+    "ow.ly",
+    "is.gd",
+    "buff.ly",
+    "cutt.ly",
+    "shorturl.at",
+    "rebrand.ly",
+    "tiny.cc",
+]
+
+
+# ==========================================
+# SUSPICIOUS TLDs
+# ==========================================
+
+SUSPICIOUS_TLDS = [
+    ".xyz",
+    ".top",
+    ".click",
+    ".link",
+    ".work",
+    ".zip",
+    ".review",
+    ".country",
+    ".kim",
+    ".party",
+    ".gq",
+    ".tk",
+    ".ml",
+    ".ga",
+    ".cf",
+]
+
+
+# ==========================================
+# ENTROPY
+# ==========================================
+
+def calculate_entropy(text):
+    """
+    Calculate Shannon entropy of a string.
+    """
+
     if not text:
         return 0.0
 
@@ -20,188 +100,348 @@ def shannon_entropy(text):
     )
 
 
+# ==========================================
+# URL FEATURE EXTRACTION
+# ==========================================
+
 def extract_features(url):
     """
     Extract numerical features from a raw URL.
 
-    Returns a dictionary of URL characteristics.
+    IMPORTANT:
+    This function is used during both
+    training and inference.
     """
 
+    url = str(url).strip()
+
+    # --------------------------------------
     # Add scheme if missing
-    if not url.startswith(("http://", "https://")):
-        url = "http://" + url
+    # --------------------------------------
 
-    parsed = urlparse(url)
+    parse_url = url
 
-    domain = parsed.netloc.split("@")[-1].split(":")[0]
-    path = parsed.path
-    query = parsed.query
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", parse_url):
+        parse_url = "http://" + parse_url
 
-    full_url = url
+    parsed = urlparse(parse_url)
 
-    # Basic URL features
-    url_length = len(full_url)
-    domain_length = len(domain)
-    path_length = len(path)
-    query_length = len(query)
+    # --------------------------------------
+    # Basic URL components
+    # --------------------------------------
 
-    # Character features
-    digit_count = sum(char.isdigit() for char in full_url)
-    letter_count = sum(char.isalpha() for char in full_url)
+    domain = parsed.netloc.lower()
+
+    # Remove username/password if present
+    if "@" in domain:
+        domain = domain.split("@")[-1]
+
+    # Remove port
+    domain = domain.split(":")[0]
+
+    path = parsed.path or ""
+    query = parsed.query or ""
+
+    # --------------------------------------
+    # Character counts
+    # --------------------------------------
+
+    digit_count = sum(char.isdigit() for char in url)
+
+    letter_count = sum(char.isalpha() for char in url)
+
     special_char_count = sum(
         not char.isalnum()
-        for char in full_url
+        for char in url
     )
 
-    # Specific characters
-    dot_count = full_url.count(".")
-    hyphen_count = full_url.count("-")
-    underscore_count = full_url.count("_")
-    slash_count = full_url.count("/")
-    question_count = full_url.count("?")
-    equal_count = full_url.count("=")
-    at_count = full_url.count("@")
-    ampersand_count = full_url.count("&")
-    percent_count = full_url.count("%")
+    dot_count = url.count(".")
 
+    hyphen_count = url.count("-")
+
+    underscore_count = url.count("_")
+
+    slash_count = url.count("/")
+
+    question_count = url.count("?")
+
+    equal_count = url.count("=")
+
+    at_count = url.count("@")
+
+    ampersand_count = url.count("&")
+
+    percent_count = url.count("%")
+
+    # --------------------------------------
+    # Domain statistics
+    # --------------------------------------
+
+    domain_digit_count = sum(
+        char.isdigit()
+        for char in domain
+    )
+
+    domain_has_hyphen = int(
+        "-" in domain
+    )
+
+    # --------------------------------------
+    # Path statistics
+    # --------------------------------------
+
+    path_digit_count = sum(
+        char.isdigit()
+        for char in path
+    )
+
+    # --------------------------------------
     # Subdomain count
-    subdomain_count = max(
-        domain.count(".") - 1,
-        0
-    )
+    # --------------------------------------
 
+    domain_parts = [
+        part
+        for part in domain.split(".")
+        if part
+    ]
+
+    if len(domain_parts) >= 2:
+        subdomain_count = max(
+            0,
+            len(domain_parts) - 2
+        )
+    else:
+        subdomain_count = 0
+
+    # --------------------------------------
     # IP address detection
+    # --------------------------------------
+
     is_domain_ip = int(
         bool(
-            re.match(
-                r"^(?:\d{1,3}\.){3}\d{1,3}$",
+            re.fullmatch(
+                r"\d{1,3}(\.\d{1,3}){3}",
                 domain
             )
         )
     )
 
+    # --------------------------------------
     # HTTPS
-    is_https = int(parsed.scheme == "https")
+    # --------------------------------------
 
-    # Suspicious URL patterns
-    suspicious_words = [
-        "login",
-        "verify",
-        "account",
-        "secure",
-        "update",
-        "password",
-        "bank",
-        "signin",
-        "confirm",
-        "security",
-        "payment"
-    ]
-
-    suspicious_word_count = sum(
-        word in full_url.lower()
-        for word in suspicious_words
+    is_https = int(
+        parsed.scheme.lower() == "https"
     )
 
-    # URL shortening services
-    shortened_domains = [
-        "bit.ly",
-        "tinyurl.com",
-        "t.co",
-        "goo.gl",
-        "ow.ly",
-        "is.gd",
-        "buff.ly",
-        "rb.gy"
-    ]
+    # --------------------------------------
+    # Suspicious words
+    # --------------------------------------
+
+    url_lower = url.lower()
+
+    suspicious_word_count = sum(
+        1
+        for word in SUSPICIOUS_WORDS
+        if word in url_lower
+    )
+
+    # --------------------------------------
+    # Specific keyword indicators
+    # --------------------------------------
+
+    has_login_keyword = int(
+        any(
+            word in url_lower
+            for word in [
+                "login",
+                "signin",
+                "sign-in",
+            ]
+        )
+    )
+
+    has_verify_keyword = int(
+        any(
+            word in url_lower
+            for word in [
+                "verify",
+                "verification",
+                "confirm",
+                "confirmation",
+            ]
+        )
+    )
+
+    has_account_keyword = int(
+        "account" in url_lower
+    )
+
+    has_secure_keyword = int(
+        "secure" in url_lower
+    )
+
+    has_update_keyword = int(
+        "update" in url_lower
+    )
+
+    has_auth_keyword = int(
+        any(
+            word in url_lower
+            for word in [
+                "auth",
+                "authenticate",
+                "authentication",
+            ]
+        )
+    )
+
+    has_password_keyword = int(
+        any(
+            word in url_lower
+            for word in [
+                "password",
+                "credential",
+            ]
+        )
+    )
+
+    # --------------------------------------
+    # Shortened URL detection
+    # --------------------------------------
 
     is_shortened = int(
         any(
-            domain.lower().endswith(short_domain)
-            for short_domain in shortened_domains
+            domain == short_domain
+            or domain.endswith("." + short_domain)
+            for short_domain in SHORTENED_DOMAINS
         )
     )
 
-    # Suspicious TLDs
-    suspicious_tlds = [
-        ".tk",
-        ".ml",
-        ".ga",
-        ".cf",
-        ".gq",
-        ".xyz",
-        ".top",
-        ".buzz",
-        ".click",
-        ".link",
-        ".info"
-    ]
+    # --------------------------------------
+    # Suspicious TLD detection
+    # --------------------------------------
 
     is_suspicious_tld = int(
         any(
-            domain.lower().endswith(tld)
-            for tld in suspicious_tlds
+            domain.endswith(tld)
+            for tld in SUSPICIOUS_TLDS
         )
     )
 
-    # Encoded characters
-    has_percent_encoding = int("%" in full_url)
+    # --------------------------------------
+    # Percent encoding
+    # --------------------------------------
 
-    # Fragment
-    has_fragment = int(bool(parsed.fragment))
+    has_percent_encoding = int(
+        bool(
+            re.search(
+                r"%[0-9a-fA-F]{2}",
+                url
+            )
+        )
+    )
 
-    # Entropy
-    url_entropy = shannon_entropy(full_url)
+    # --------------------------------------
+    # URL fragment
+    # --------------------------------------
 
-    # Feature dictionary
-    features = {
-        "URLLength": url_length,
-        "DomainLength": domain_length,
-        "PathLength": path_length,
-        "QueryLength": query_length,
+    has_fragment = int(
+        bool(parsed.fragment)
+    )
+
+    # --------------------------------------
+    # Query parameter count
+    # --------------------------------------
+
+    if query:
+        query_parameter_count = len(
+            query.split("&")
+        )
+    else:
+        query_parameter_count = 0
+
+    # --------------------------------------
+    # URL entropy
+    # --------------------------------------
+
+    url_entropy = calculate_entropy(url)
+
+    # ======================================
+    # RETURN FEATURES
+    # ======================================
+
+    return {
+
+        "URLLength": len(url),
+
+        "DomainLength": len(domain),
+
+        "PathLength": len(path),
+
+        "QueryLength": len(query),
+
         "DigitCount": digit_count,
+
         "LetterCount": letter_count,
+
         "SpecialCharCount": special_char_count,
+
         "DotCount": dot_count,
+
         "HyphenCount": hyphen_count,
+
         "UnderscoreCount": underscore_count,
+
         "SlashCount": slash_count,
+
         "QuestionCount": question_count,
+
         "EqualCount": equal_count,
+
         "AtCount": at_count,
+
         "AmpersandCount": ampersand_count,
+
         "PercentCount": percent_count,
+
         "SubdomainCount": subdomain_count,
+
         "IsDomainIP": is_domain_ip,
+
         "IsHTTPS": is_https,
+
         "SuspiciousWordCount": suspicious_word_count,
+
         "IsShortened": is_shortened,
+
         "IsSuspiciousTLD": is_suspicious_tld,
+
         "HasPercentEncoding": has_percent_encoding,
+
         "HasFragment": has_fragment,
-        "URLEntropy": url_entropy
+
+        "URLEntropy": url_entropy,
+
+        "DomainHasHyphen": domain_has_hyphen,
+
+        "DomainDigitCount": domain_digit_count,
+
+        "PathDigitCount": path_digit_count,
+
+        "QueryParameterCount": query_parameter_count,
+
+        "HasLoginKeyword": has_login_keyword,
+
+        "HasVerifyKeyword": has_verify_keyword,
+
+        "HasAccountKeyword": has_account_keyword,
+
+        "HasSecureKeyword": has_secure_keyword,
+
+        "HasUpdateKeyword": has_update_keyword,
+
+        "HasAuthKeyword": has_auth_keyword,
+
+        "HasPasswordKeyword": has_password_keyword,
     }
-
-    return features
-
-
-if __name__ == "__main__":
-
-    test_urls = [
-        "https://example.com",
-        "https://example.com/login",
-        "http://192.168.1.1/login",
-        "https://secure-account-verify.xyz/login",
-        "https://bit.ly/example"
-    ]
-
-    for url in test_urls:
-
-        print("\n" + "=" * 60)
-        print(f"URL: {url}")
-        print("=" * 60)
-
-        features = extract_features(url)
-
-        for name, value in features.items():
-            print(f"{name}: {value}")
