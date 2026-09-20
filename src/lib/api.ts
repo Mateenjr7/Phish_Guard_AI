@@ -17,6 +17,8 @@ export interface BackendIndicator {
 export interface URLAnalysisResponse {
   url: string;
 
+  url_analysis?: URLAnalysisDetails;
+
   prediction: {
     ml_probability: number;
     ml_label: "phishing" | "legitimate";
@@ -29,6 +31,27 @@ export interface URLAnalysisResponse {
     rule_score: number;
     indicators: BackendIndicator[];
   };
+}
+
+export interface URLAnalysisDetails {
+  protocol: string;
+  hostname: string;
+  registrable_domain: string;
+  tld: string;
+  subdomain_count: number;
+  is_ip_address: boolean;
+  url_length: number;
+  domain_length: number;
+  path: string;
+  path_depth: number;
+  query_parameter_count: number;
+  query: string;
+  fragment: string;
+  port: number | null;
+  has_percent_encoding: boolean;
+  has_at_symbol: boolean;
+  is_shortened: boolean;
+  is_suspicious_tld: boolean;
 }
 
 // =========================================================

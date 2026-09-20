@@ -183,3 +183,22 @@ def test_duplicate_indicators_are_kept_once_without_mutating_input():
 
     assert result["indicators"] == [duplicate]
     assert rule_result["indicators"] == rule_indicators
+
+
+def test_existing_url_analysis_still_works():
+    result = analyze_url(
+        URLAnalysisRequest(
+            url="https://github.com"
+        )
+    )
+
+    assert {"url", "prediction", "risk", "url_analysis"}.issubset(
+        result
+    )
+    assert set(result["prediction"]) == {
+        "ml_probability",
+        "ml_label",
+    }
+    assert "risk_score" in result["risk"]
+    assert "indicators" in result["risk"]
+    assert result["url_analysis"]["hostname"] == "github.com"

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import type { AnalysisResult } from "@/lib/threatAnalysis";
+import type { URLAnalysisDetails } from "@/lib/api";
 
 interface BackendIndicator {
   type: string;
@@ -42,6 +43,7 @@ interface BackendPrediction {
 interface BackendResult {
   prediction: BackendPrediction;
   risk: BackendRisk;
+  url_analysis?: URLAnalysisDetails;
 }
 
 interface ThreatReportProps {
@@ -127,6 +129,37 @@ const ThreatReport = ({
 
   const riskLevel =
     backendResult?.risk.risk_level ?? null;
+
+  const urlAnalysis = backendResult?.url_analysis;
+
+  const urlStructureFields: Array<[
+    string,
+    string | number,
+  ]> = urlAnalysis
+    ? [
+        ["Protocol", urlAnalysis.protocol.toUpperCase()],
+        ["Hostname", urlAnalysis.hostname || "-"],
+        ["Root Domain", urlAnalysis.registrable_domain || "-"],
+        ["TLD", urlAnalysis.tld || "-"],
+        ["Subdomains", urlAnalysis.subdomain_count],
+        ["IP Address", urlAnalysis.is_ip_address ? "Yes" : "No"],
+        ["URL Length", urlAnalysis.url_length],
+        ["Domain Length", urlAnalysis.domain_length],
+        ["Path Depth", urlAnalysis.path_depth],
+        ["Query Parameters", urlAnalysis.query_parameter_count],
+        ["Port", urlAnalysis.port ?? "-"],
+      ]
+    : [];
+
+  const urlSecuritySignals: Array<[string, boolean]> = urlAnalysis
+    ? [
+        ["HTTPS", urlAnalysis.protocol === "https"],
+        ["Percent Encoding", urlAnalysis.has_percent_encoding],
+        ["@ Symbol", urlAnalysis.has_at_symbol],
+        ["URL Shortener", urlAnalysis.is_shortened],
+        ["Suspicious TLD", urlAnalysis.is_suspicious_tld],
+      ]
+    : [];
 
   /*
    * Removes a severity accidentally appended to the
@@ -366,7 +399,9 @@ const ThreatReport = ({
                 </span>
 
                 <p className="text-sm font-semibold text-foreground">
-                  TF-IDF + Logistic Regression
+                  {result.inputType === "url"
+                    ? "Random Forest"
+                    : "TF-IDF + Logistic Regression"}
                 </p>
               </div>
 
@@ -384,6 +419,71 @@ const ThreatReport = ({
 
           </div>
         )}
+
+        {result.inputType === "url" && urlAnalysis && (
+            <div className="rounded-lg border border-border/30 bg-secondary/10 p-4">
+              <h3 className="text-sm font-bold text-foreground mb-3">
+                URL ANALYSIS
+              </h3>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    URL Structure
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {urlStructureFields.map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-md bg-secondary/30 px-3 py-2"
+                      >
+                        <span className="text-xs text-muted-foreground">
+                          {label}
+                        </span>
+                        <p className="text-sm font-semibold text-foreground break-words">
+                          {value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-md bg-secondary/30 px-3 py-2 mt-2">
+                    <span className="text-xs text-muted-foreground">
+                      Path
+                    </span>
+                    <p className="text-sm font-semibold text-foreground break-all">
+                      {urlAnalysis.path || "/"}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Security Signals
+                  </p>
+
+                  <div className="grid gap-2">
+                    {urlSecuritySignals.map(([label, detected]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between rounded-md bg-secondary/30 px-3 py-2"
+                      >
+                        <span className="text-sm text-foreground">
+                          {label}
+                        </span>
+                        <span
+                          className={`text-xs font-bold uppercase ${detected ? "text-warning" : "text-success"}`}
+                        >
+                          {detected ? "Detected" : "Not detected"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* =================================================
             Detected Threats
