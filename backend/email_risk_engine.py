@@ -1,5 +1,7 @@
 import re
 
+from backend.risk_engine import analyze_rules
+
 
 URGENCY_TERMS = {
     "urgent",
@@ -84,15 +86,61 @@ SUSPICIOUS_EXTENSIONS = {
     ".zip",
 }
 
+URL_PATTERN = re.compile(
+    r"https?://[^\s<>\"']+",
+    flags=re.IGNORECASE,
+)
+
+HTML_SCRIPT_PATTERN = re.compile(
+    r"<\s*(script|iframe|object|embed)\b|"
+    r"\bjavascript\s*:|\bon(?:error|load|click)\s*=",
+    flags=re.IGNORECASE,
+)
+
 
 def find_terms(text: str, terms: set[str]) -> list[str]:
     text_lower = text.lower()
 
     return [
         term
-        for term in terms
-        if term in text_lower
+        for term in sorted(terms)
+        if re.search(
+            rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])",
+            text_lower,
+        )
     ]
+
+
+def extract_urls(text: str) -> list[str]:
+    urls = []
+
+    for match in URL_PATTERN.findall(text):
+        cleaned = match.rstrip(".,!?;:)]}")
+
+        if cleaned and cleaned not in urls:
+            urls.append(cleaned)
+
+    return urls
+
+
+def deduplicate_indicators(indicators: list[dict]) -> list[dict]:
+    unique = []
+    seen = set()
+
+    for indicator in indicators:
+        key = (
+            indicator.get("type"),
+            indicator.get("severity"),
+            indicator.get("message"),
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        unique.append(indicator)
+
+    return unique
 
 
 def analyze_email_rules(
@@ -260,11 +308,7 @@ def analyze_email_rules(
     # URLs
     # --------------------------------------------------------
 
-    urls = re.findall(
-        r"https?://[^\s<>\"']+",
-        text,
-        flags=re.IGNORECASE,
-    )
+    urls = extract_urls(text)
 
     if urls:
         score += min(len(urls) * 5, 15)
@@ -276,6 +320,47 @@ def analyze_email_rules(
                 f"{len(urls)} web link(s) detected in the email."
             ),
         })
+
+        url_rule_score = 0
+
+        for url in urls:
+            url_result = analyze_rules(url)
+            url_rule_score += url_result["rule_score"]
+
+            for url_indicator in url_result["indicators"]:
+                indicator_type = url_indicator["type"]
+
+                if indicator_type not in {
+                    "url_shortener",
+                    "ip_address",
+                    "suspicious_tld",
+                    "brand_impersonation",
+                    "brand_action_combination",
+                    "at_symbol",
+                    "encoded_url",
+                }:
+                    continue
+
+                indicators.append({
+                    "type": f"email_{indicator_type}",
+                    "severity": url_indicator["severity"],
+                    "message": (
+                        f"Suspicious URL detected ({url}): "
+                        f"{url_indicator['message']}"
+                    ),
+                })
+
+        if url_rule_score:
+            score += min(url_rule_score, 40)
+
+            indicators.append({
+                "type": "suspicious_url",
+                "severity": "high" if url_rule_score >= 25 else "medium",
+                "message": (
+                    f"Suspicious URL evidence detected in "
+                    f"{len(urls)} email link(s)."
+                ),
+            })
 
     # --------------------------------------------------------
     # Attachments / executable files
@@ -351,7 +436,20 @@ def analyze_email_rules(
             ),
         })
 
+    if HTML_SCRIPT_PATTERN.search(text):
+        score += 20
+
+        indicators.append({
+            "type": "html_script_content",
+            "severity": "high",
+            "message": (
+                "Script-like or active HTML content was detected."
+            ),
+        })
+
     score = min(score, 100)
+
+    indicators = deduplicate_indicators(indicators)
 
     return {
         "rule_score": score,
