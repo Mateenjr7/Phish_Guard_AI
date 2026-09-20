@@ -6,6 +6,7 @@ from ml_service import predict_url
 from sms_risk import calculate_sms_risk
 from email_risk import calculate_email_risk
 from risk_engine import analyze_rules, calculate_risk
+from backend.threat_intelligence import lookup_url_threat_intelligence
 
 
 # =========================================================
@@ -113,10 +114,14 @@ def analyze_url(request: URLAnalysisRequest):
         # Rule analysis
         rule_result = analyze_rules(url)
 
+        # Offline threat-intelligence lookup
+        threat_intel = lookup_url_threat_intelligence(url)
+
         # Combined risk
         risk_result = calculate_risk(
             ml_probability=ml_result["phishing_probability"],
             rule_result=rule_result,
+            threat_intel=threat_intel,
         )
 
         return {

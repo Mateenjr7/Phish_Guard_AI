@@ -1,6 +1,8 @@
 from urllib.parse import urlparse
 import re
 
+from backend.threat_intelligence import ThreatIntelEvidence
+
 
 # =========================================================
 # Configuration
@@ -496,6 +498,7 @@ def analyze_rules(url: str) -> dict:
 def calculate_risk(
     ml_probability: float,
     rule_result: dict,
+    threat_intel: ThreatIntelEvidence | None = None,
 ) -> dict:
 
     rule_score = rule_result["rule_score"]
@@ -622,6 +625,11 @@ def calculate_risk(
             2,
         )
 
+
+    if threat_intel and threat_intel.matched:
+        indicators.extend(
+            threat_intel.indicators
+        )
 
     return {
         "risk_score": combined_score,
