@@ -4,6 +4,72 @@ import re
 from backend.threat_intelligence import ThreatIntelEvidence
 
 
+MAX_THREAT_INTEL_SCORE = 30
+THREAT_INTEL_SEVERITY_SCORES = {
+    "info": 5,
+    "low": 5,
+    "medium": 10,
+    "high": 20,
+    "critical": 30,
+}
+
+
+def _indicator_key(indicator: dict) -> tuple:
+    return (
+        indicator.get("type"),
+        indicator.get("severity"),
+        indicator.get("message"),
+    )
+
+
+def _deduplicate_indicators(
+    indicators: list[dict],
+) -> list[dict]:
+    unique_indicators = []
+    seen = set()
+
+    for indicator in indicators:
+        key = _indicator_key(indicator)
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        unique_indicators.append(indicator)
+
+    return unique_indicators
+
+
+def _threat_intel_score(
+    threat_intel: ThreatIntelEvidence,
+) -> tuple[int, str | None]:
+    adjustment = 0
+    highest_severity = None
+    severity_order = {
+        "info": 0,
+        "low": 0,
+        "medium": 1,
+        "high": 2,
+        "critical": 3,
+    }
+
+    for indicator in threat_intel.indicators:
+        severity = indicator.get("severity", "info").lower()
+        adjustment += THREAT_INTEL_SEVERITY_SCORES.get(
+            severity,
+            0,
+        )
+
+        if (
+            highest_severity is None
+            or severity_order.get(severity, 0)
+            > severity_order.get(highest_severity, 0)
+        ):
+            highest_severity = severity
+
+    return min(adjustment, MAX_THREAT_INTEL_SCORE), highest_severity
+
+
 # =========================================================
 # Configuration
 # =========================================================
@@ -503,7 +569,13 @@ def calculate_risk(
 
     rule_score = rule_result["rule_score"]
 
-    indicators = rule_result["indicators"]
+    indicators = _deduplicate_indicators(
+        list(rule_result.get("indicators", []))
+    )
+
+    confirmed_threat_intel = bool(
+        threat_intel and threat_intel.matched
+    )
 
 
     # -----------------------------------------------------
@@ -610,6 +682,8 @@ def calculate_risk(
     # -----------------------------------------------------
 
     if (
+        not confirmed_threat_intel
+        and
         ml_probability >= 0.90
         and
         rule_score == 0
@@ -626,12 +700,38 @@ def calculate_risk(
         )
 
 
-    if threat_intel and threat_intel.matched:
-        indicators.extend(
-            threat_intel.indicators
+    if confirmed_threat_intel:
+        threat_intel_adjustment, highest_ti_severity = (
+            _threat_intel_score(threat_intel)
         )
 
-    return {
+        combined_score = round(
+            min(
+                combined_score + threat_intel_adjustment,
+                100,
+            ),
+            2,
+        )
+
+        if highest_ti_severity == "critical":
+            combined_score = max(combined_score, 80)
+            risk_level = "HIGH"
+
+        elif highest_ti_severity == "high":
+            combined_score = max(combined_score, 70)
+            risk_level = "HIGH"
+
+        elif combined_score >= 70:
+            risk_level = "HIGH"
+
+        elif combined_score >= 40:
+            risk_level = "MEDIUM"
+
+        indicators = _deduplicate_indicators(
+            indicators + threat_intel.indicators
+        )
+
+    risk_result = {
         "risk_score": combined_score,
         "risk_level": risk_level,
         "ml_probability": round(
@@ -641,3 +741,5 @@ def calculate_risk(
         "rule_score": rule_score,
         "indicators": indicators,
     }
+
+    return risk_result
