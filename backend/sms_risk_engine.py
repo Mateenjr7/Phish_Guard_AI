@@ -1,5 +1,7 @@
 import re
 
+from backend.risk_engine import analyze_rules
+
 
 URGENT_TERMS = {
     "urgent",
@@ -40,6 +42,16 @@ CREDENTIAL_TERMS = {
     "credentials",
 }
 
+FINANCIAL_TERMS = {
+    "payment",
+    "invoice",
+    "transaction",
+    "credit card",
+    "debit card",
+    "billing",
+    "wire transfer",
+}
+
 REWARD_TERMS = {
     "winner",
     "won",
@@ -75,6 +87,19 @@ MONEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+URL_PATTERN = re.compile(
+    r"https?://[^\s<>\"']+",
+    re.IGNORECASE,
+)
+
+LINK_ACTION_TERMS = {
+    "click",
+    "open",
+    "visit",
+    "tap",
+    "follow",
+}
+
 
 def _find_terms(text: str, terms: set[str]) -> list[str]:
     found = []
@@ -86,6 +111,38 @@ def _find_terms(text: str, terms: set[str]) -> list[str]:
             found.append(term)
 
     return sorted(found)
+
+
+def _extract_urls(text: str) -> list[str]:
+    urls = []
+
+    for match in URL_PATTERN.findall(text):
+        cleaned = match.rstrip(".,!?;:)]}")
+
+        if cleaned and cleaned not in urls:
+            urls.append(cleaned)
+
+    return urls
+
+
+def _deduplicate_indicators(indicators: list[dict]) -> list[dict]:
+    unique = []
+    seen = set()
+
+    for indicator in indicators:
+        key = (
+            indicator.get("type"),
+            indicator.get("severity"),
+            indicator.get("message"),
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        unique.append(indicator)
+
+    return unique
 
 
 def analyze_sms_rules(text: str) -> dict:
@@ -101,12 +158,16 @@ def analyze_sms_rules(text: str) -> dict:
     account = _find_terms(text, ACCOUNT_TERMS)
     verification = _find_terms(text, VERIFICATION_TERMS)
     credentials = _find_terms(text, CREDENTIAL_TERMS)
+    financial = _find_terms(text, FINANCIAL_TERMS)
     rewards = _find_terms(text, REWARD_TERMS)
     threats = _find_terms(text, THREAT_TERMS)
 
-    has_link = bool(LINK_PATTERN.search(text))
-    has_phone = bool(PHONE_PATTERN.search(text))
+    urls = _extract_urls(text)
+    has_link = bool(urls) or bool(LINK_PATTERN.search(text))
+    text_without_urls = URL_PATTERN.sub("", text)
+    has_phone = bool(PHONE_PATTERN.search(text_without_urls))
     has_money = bool(MONEY_PATTERN.search(text))
+    link_actions = _find_terms(text, LINK_ACTION_TERMS)
 
     if urgent:
         rule_score += 10
@@ -156,6 +217,18 @@ def analyze_sms_rules(text: str) -> dict:
             ),
         })
 
+    if financial:
+        rule_score += 8
+
+        indicators.append({
+            "type": "financial_request",
+            "severity": "medium",
+            "message": (
+                "Financial or payment-related terms detected: "
+                + ", ".join(financial)
+            ),
+        })
+
     if rewards:
         rule_score += 15
 
@@ -188,6 +261,60 @@ def analyze_sms_rules(text: str) -> dict:
             "severity": "medium",
             "message": "A web link was detected in the message.",
         })
+
+    if link_actions and has_link:
+        rule_score += 5
+
+        indicators.append({
+            "type": "link_action",
+            "severity": "medium",
+            "message": (
+                "A request to open or follow a web link was detected: "
+                + ", ".join(link_actions)
+            ),
+        })
+
+    if urls:
+        url_rule_score = 0
+
+        for url in urls:
+            url_result = analyze_rules(url)
+            url_rule_score += url_result["rule_score"]
+
+            for url_indicator in url_result["indicators"]:
+                indicator_type = url_indicator["type"]
+
+                if indicator_type not in {
+                    "url_shortener",
+                    "ip_address",
+                    "suspicious_tld",
+                    "brand_impersonation",
+                    "brand_action_combination",
+                    "at_symbol",
+                    "encoded_url",
+                }:
+                    continue
+
+                indicators.append({
+                    "type": f"sms_{indicator_type}",
+                    "severity": url_indicator["severity"],
+                    "message": (
+                        f"Suspicious URL detected ({url}): "
+                        f"{url_indicator['message']}"
+                    ),
+                })
+
+        if url_rule_score:
+            rule_score += min(url_rule_score, 40)
+
+            indicators.append({
+                "type": "suspicious_url",
+                "severity": "high" if url_rule_score >= 25 else "medium",
+                "message": (
+                    f"Suspicious URL evidence detected in "
+                    f"{len(urls)} SMS link(s)."
+                ),
+            })
 
     if has_phone:
         rule_score += 5
@@ -245,6 +372,7 @@ def analyze_sms_rules(text: str) -> dict:
         })
 
     rule_score = min(rule_score, 100)
+    indicators = _deduplicate_indicators(indicators)
 
     return {
         "rule_score": rule_score,
