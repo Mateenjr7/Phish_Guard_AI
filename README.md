@@ -265,6 +265,7 @@ The API is available at `http://127.0.0.1:8000`; interactive documentation is at
 The frontend is a Vite application:
 
 ```powershell
+cd frontend
 npm install
 npm run dev
 ```
@@ -275,6 +276,7 @@ The frontend API helper targets `http://127.0.0.1:8000`.
 
 ```powershell
 .\ml\.venv\Scripts\python.exe -m pytest backend/tests -q
+cd frontend
 npm test -- --run
 npm run build
 ```
@@ -330,7 +332,7 @@ ml/
   src/features/           Runtime URL feature extraction
   src/training/           Model training scripts
   data/                   Training datasets and processed data
-src/                      Vite frontend
+frontend/                 Vite frontend
 Dockerfile                Backend production image
 .dockerignore             Docker build-context exclusions
 ```

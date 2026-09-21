@@ -12,6 +12,7 @@ __pycache__/
 coverage.xml
 htmlcov/
 node_modules/
+frontend/
 dist/
 build/
 data/

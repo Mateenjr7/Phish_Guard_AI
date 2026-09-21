@@ -2,7 +2,7 @@
 
 ## System Overview
 
-PhishGuard AI is a FastAPI service with three analysis pipelines: URL, SMS, and email. Each pipeline combines machine-learning inference with deterministic rule analysis and returns an explainable risk result. A Vite frontend consumes the backend through typed functions in `src/lib/api.ts`.
+PhishGuard AI is a FastAPI service with three analysis pipelines: URL, SMS, and email. Each pipeline combines machine-learning inference with deterministic rule analysis and returns an explainable risk result. A Vite frontend consumes the backend through typed functions in `frontend/src/lib/api.ts`.
 
 ```mermaid
 flowchart LR
@@ -212,12 +212,14 @@ The backend suite is run with:
 The frontend uses Vitest:
 
 ```powershell
+cd frontend
 npm test -- --run
 ```
 
 The frontend production build is checked with:
 
 ```powershell
+cd frontend
 npm run build
 ```
 
