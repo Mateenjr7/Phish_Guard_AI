@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from ml_service import predict_url
 from sms_risk import calculate_sms_risk
@@ -73,6 +74,27 @@ class EmailAnalysisRequest(BaseModel):
         max_length=100000,
     )
 
+
+class UnifiedAnalysisRequest(BaseModel):
+    input_type: Literal["url", "sms", "email"]
+    url: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=4096,
+    )
+    text: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=10000,
+    )
+    subject: str = Field(
+        default="",
+        max_length=1000,
+    )
+    body: str = Field(
+        default="",
+        max_length=100000,
+    )
 
 # =========================================================
 # Health endpoint
@@ -263,6 +285,44 @@ def analyze_email(request: EmailAnalysisRequest):
             detail=str(exc),
         ) from exc
 
+
+# =========================================================
+# Unified analysis
+# =========================================================
+
+
+@app.post("/api/analyze")
+def analyze_unified(request: UnifiedAnalysisRequest):
+    if request.input_type == "url":
+        if request.url is None:
+            raise HTTPException(
+                status_code=400,
+                detail="URL is required for URL analysis.",
+            )
+
+        result = analyze_url(URLAnalysisRequest(url=request.url))
+
+    elif request.input_type == "sms":
+        if request.text is None:
+            raise HTTPException(
+                status_code=400,
+                detail="SMS text is required for SMS analysis.",
+            )
+
+        result = analyze_sms(SMSAnalysisRequest(text=request.text))
+
+    else:
+        result = analyze_email(
+            EmailAnalysisRequest(
+                subject=request.subject,
+                body=request.body,
+            )
+        )
+
+    return {
+        "input_type": request.input_type,
+        **result,
+    }
 
 # =========================================================
 # Root

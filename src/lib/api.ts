@@ -97,6 +97,16 @@ export interface EmailAnalysisResponse {
   };
 }
 
+export type UnifiedAnalysisRequest =
+  | { input_type: "url"; url: string }
+  | { input_type: "sms"; text: string }
+  | { input_type: "email"; subject?: string; body?: string };
+
+export type UnifiedAnalysisResponse =
+  | (URLAnalysisResponse & { input_type: "url" })
+  | (SMSAnalysisResponse & { input_type: "sms" })
+  | (EmailAnalysisResponse & { input_type: "email" });
+
 // =========================================================
 // URL API
 // =========================================================
@@ -195,6 +205,43 @@ export async function analyzeEmailWithBackend(
 
   if (!response.ok) {
     let message = "Failed to analyze email.";
+
+    try {
+      const error = await response.json();
+
+      if (error?.detail) {
+        message = error.detail;
+      }
+    } catch {
+      // Ignore JSON parsing errors.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+// =========================================================
+// Unified analysis API
+// =========================================================
+
+export async function analyzeUnifiedWithBackend(
+  request: UnifiedAnalysisRequest,
+): Promise<UnifiedAnalysisResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/analyze`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.ok) {
+    let message = "Failed to analyze input.";
 
     try {
       const error = await response.json();
