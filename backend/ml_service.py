@@ -13,14 +13,8 @@ BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
 ML_DIR = PROJECT_ROOT / "ml"
+
 MODEL_PATH = ML_DIR / "models" / "url_phishing_model_clean_v3.joblib"
-FEATURE_EXTRACTOR_DIR = ML_DIR / "src"
-
-
-# Allow importing the shared feature extractor
-sys.path.insert(0, str(FEATURE_EXTRACTOR_DIR))
-
-from feature_extractor_clean import extract_features
 
 
 # =========================================================
