@@ -2,20 +2,24 @@ import joblib
 import pandas as pd
 
 from pathlib import Path
-
-from feature_extractor import extract_features
+import sys
 
 
 # ==========================================
 # PATHS
 # ==========================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from ml.src.features.feature_extractor_clean import extract_features
+
 
 MODEL_PATH = (
     PROJECT_ROOT
+    / "ml"
     / "models"
-    / "url_phishing_model.joblib"
+    / "url_phishing_model_clean_v3.joblib"
 )
 
 
@@ -67,6 +71,21 @@ for url in test_urls:
     # --------------------------------------
 
     X = pd.DataFrame([features])
+
+    if hasattr(model, "feature_names_in_"):
+        expected_features = list(model.feature_names_in_)
+        missing_features = [
+            feature
+            for feature in expected_features
+            if feature not in X.columns
+        ]
+
+        if missing_features:
+            raise ValueError(
+                f"Missing model features: {missing_features}"
+            )
+
+        X = X.loc[:, expected_features]
 
     # --------------------------------------
     # Prediction

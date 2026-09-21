@@ -1,3 +1,4 @@
+from backend.main import URLAnalysisRequest, analyze_url, app
 from backend.risk_engine import (
     MAX_THREAT_INTEL_SCORE,
     analyze_rules,
@@ -202,3 +203,9 @@ def test_existing_url_analysis_still_works():
     assert "risk_score" in result["risk"]
     assert "indicators" in result["risk"]
     assert result["url_analysis"]["hostname"] == "github.com"
+
+
+def test_fastapi_import_and_routes_remain_unchanged():
+    routes = {route.path for route in app.routes}
+
+    assert {"/", "/health", "/api/analyze/url", "/api/analyze/sms", "/api/analyze/email"}.issubset(routes)

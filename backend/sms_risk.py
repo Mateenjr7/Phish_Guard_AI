@@ -1,6 +1,5 @@
-from sms_service import predict_sms
-from sms_risk_engine import analyze_sms_rules
-
+from backend.sms_service import predict_sms
+from backend.sms_risk_engine import analyze_sms_rules
 
 def calculate_sms_risk(text: str) -> dict:
     ml_result = predict_sms(text)

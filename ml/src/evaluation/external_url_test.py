@@ -1,16 +1,13 @@
-import sys
 from pathlib import Path
 
 import pandas as pd
 import joblib
 
-# Allow importing from ml/src
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from feature_extractor_clean import extract_features
+from ml.src.features.feature_extractor_clean import extract_features
 
 
-MODEL_PATH = "models/url_phishing_model_clean_v3.joblib"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+MODEL_PATH = PROJECT_ROOT / "ml" / "models" / "url_phishing_model_clean_v3.joblib"
 
 
 # ---------------------------------------------------------

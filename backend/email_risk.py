@@ -1,5 +1,5 @@
-from email_service import predict_email
-from email_risk_engine import analyze_email_rules
+from backend.email_service import predict_email
+from backend.email_risk_engine import analyze_email_rules
 
 
 def calculate_email_risk(
