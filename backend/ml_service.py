@@ -1,8 +1,8 @@
 from pathlib import Path
-import sys
 
 import joblib
 import pandas as pd
+from ml.src.features.feature_extractor_clean import extract_features
 
 
 # =========================================================
