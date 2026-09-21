@@ -290,7 +290,26 @@ docker build -t phish-guard-ai-backend .
 docker run --rm -p 8000:8000 phish-guard-ai-backend
 ```
 
-The image health check calls `GET /health` on port 8000. Docker validation requires a running Docker Desktop/Linux daemon.
+The image health check calls `GET /health`. The container uses the `PORT` environment variable when provided and defaults to port 8000 for local runs. Docker validation requires a running Docker Desktop/Linux daemon.
+
+## Render Deployment
+
+The repository includes `render.yaml` for a single Docker Web Service. It uses the root `Dockerfile`, the `standard` plan recommended for the current model footprint, and `/health` as the health check path. The service is stateless and does not need a database, volume, worker, or scheduled job.
+
+1. Create or connect a Render project from this repository.
+2. Create a Web Service using the repository's `render.yaml`, or select Docker as the runtime and set the Dockerfile path to `./Dockerfile` and the Docker context to the repository root.
+3. Use the `standard` service size initially. The deployed image is about 254.5 MiB and the model artifacts total about 245.47 MiB; validate memory usage before reducing the service size.
+4. Set `PHISHGUARD_ALLOWED_ORIGINS` to one or more comma-separated frontend origins, for example:
+
+  ```text
+  https://your-frontend.example.com
+  ```
+
+  Localhost origins remain enabled for development. Do not set this variable to `*`; credentials are enabled and wildcard origins are rejected.
+5. Deploy the service. Render provides the public backend URL after the first successful deployment; copy it from the service Overview page.
+6. Verify the deployment at `<backend-url>/health`, `<backend-url>/`, and the analysis endpoints. Render terminates HTTPS at the public URL and forwards requests to the container port selected through `PORT` (8000 by default).
+
+The frontend remains separately deployable. Configure its API base URL to the Render backend URL and add that frontend origin to `PHISHGUARD_ALLOWED_ORIGINS`.
 
 ## Project Structure
 

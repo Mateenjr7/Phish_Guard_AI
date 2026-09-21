@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: phishguard-api
+    runtime: docker
+    plan: standard
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PHISHGUARD_ALLOWED_ORIGINS
+        sync: false

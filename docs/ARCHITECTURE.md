@@ -178,7 +178,7 @@ flowchart LR
     Container --> Health[GET /health health check]
 ```
 
-`Dockerfile` installs only `backend/requirements.txt`, copies backend runtime code, the URL feature package, and the five model artifacts required by inference. `.dockerignore` excludes datasets, training/evaluation code, frontend dependencies, tests, caches, secrets, and VCS files. The container exposes port 8000 and runs as non-root user `appuser`.
+`Dockerfile` installs only `backend/requirements.txt`, copies backend runtime code, the URL feature package, and the five model artifacts required by inference. `.dockerignore` excludes datasets, training/evaluation code, frontend dependencies, tests, caches, secrets, and VCS files. The container runs as non-root user `appuser` and uses `PORT` when provided, defaulting to 8000.
 
 Commands:
 
@@ -188,6 +188,10 @@ docker run --rm -p 8000:8000 phish-guard-ai-backend
 ```
 
 The health check calls `http://127.0.0.1:8000/health` from inside the container. No compose service is needed because the backend has no database, cache, or external runtime dependency.
+
+## Production Configuration
+
+`PHISHGUARD_ALLOWED_ORIGINS` is an optional comma-separated environment variable for deployed frontend origins. The four localhost development origins remain enabled by default. Wildcard origins are rejected because the API enables credentials. Render uses the repository's `render.yaml`, the root Dockerfile, the `standard` service plan, and `/health` as its service health check. The frontend remains a separate deployment and should use the Render backend URL as its API base URL.
 
 ## Testing Architecture
 

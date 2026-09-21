@@ -1,13 +1,17 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
 
-from ml_service import predict_url
-from sms_risk import calculate_sms_risk
-from email_risk import calculate_email_risk
-from risk_engine import analyze_rules, calculate_risk
-from backend.threat_intelligence import lookup_url_threat_intelligence
+from backend.ml_service import predict_url
+from backend.sms_risk import calculate_sms_risk
+from backend.email_risk import calculate_email_risk
+from backend.risk_engine import analyze_rules, calculate_risk
+from backend.threat_intelligence import (
+    lookup_url_threat_intelligence,
+)
 from backend.url_analysis import analyze_url_structure
 
 
@@ -29,14 +33,37 @@ app = FastAPI(
 # CORS
 # =========================================================
 
+
+LOCAL_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8080",
+]
+
+
+def get_allowed_origins() -> list[str]:
+    configured_origins = [
+        origin.strip()
+        for origin in os.getenv(
+            "PHISHGUARD_ALLOWED_ORIGINS",
+            "",
+        ).split(",")
+        if origin.strip()
+    ]
+
+    if "*" in configured_origins:
+        raise RuntimeError(
+            "PHISHGUARD_ALLOWED_ORIGINS cannot contain '*' "
+            "when credentials are enabled."
+        )
+
+    return list(dict.fromkeys(LOCAL_ALLOWED_ORIGINS + configured_origins))
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-    ],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,6 +122,7 @@ class UnifiedAnalysisRequest(BaseModel):
         default="",
         max_length=100000,
     )
+
 
 # =========================================================
 # Health endpoint
@@ -324,6 +352,7 @@ def analyze_unified(request: UnifiedAnalysisRequest):
         **result,
     }
 
+
 # =========================================================
 # Root
 # =========================================================
@@ -339,5 +368,6 @@ def root():
             "url_analysis": "/api/analyze/url",
             "sms_analysis": "/api/analyze/sms",
             "email_analysis": "/api/analyze/email",
+            "unified_analysis": "/api/analyze",
         },
     }
